@@ -299,9 +299,47 @@ git push myfork master pydrone/esp32s3-port
 
 ---
 
-## 十二、後續待辦
+## 十二、飄移修正
 
-- [ ] 攝像頭模組移植（`MICROPY_PORT_CAMLIB`）— 需補 camera C module
-- [ ] Web stream 移植（`MICROPY_PORT_WEB_STREAM`）
-- [ ] 調整飄移修正參數（角度環 ki、trim 軸偏移）
-- [ ] 驗證 OTA 更新流程
+飄移根本原因（已透過實機「轉 180° 測試」確認）：
+
+| 原因 | 說明 |
+|------|------|
+| 角度環 ki = 0 | roll/pitch 無積分補償，IMU 傾斜、重心偏移、馬達不對稱造成的固定偏差永遠無法修正 |
+| trim args bug | `mod_drone.c` 中 pit 重複讀 args[0]，pitch trim 永遠等於 roll trim（**已修**）|
+
+### 修改一：角度環 ki（已套用）
+
+`ports/esp32/py-drone/utils/src/config_param.c`
+
+```c
+.pidAngle = {
+    .roll  = { .kp = 8.0, .ki = 0.8, .kd = 0.0 },  // 原本 ki = 0.0
+    .pitch = { .kp = 8.0, .ki = 0.8, .kd = 0.0 },  // 原本 ki = 0.0
+    .yaw   = { .kp = 20.0, .ki = 0.0, .kd = 1.5 }, // 不動
+}
+```
+
+**調參指南：**
+- 仍飄移 → 調高到 `1.2 ~ 1.5`
+- 出現緩慢搖擺 → 調低到 `0.3 ~ 0.5`
+- 積分限幅 `±30°` 已存在，不會積分爆炸
+
+### 修改二：每台個別 trim（選做）
+
+每台 pyDrone flash 上放一個 `config.py`：
+
+```python
+# config.py（燒到 pyDrone 的 flash 檔案系統）
+TRIM_ROL = 0
+TRIM_PIT = 250   # 殘留 2.5° 飄移就填 250，飄多少填多少 × 100
+```
+
+```python
+# main.py
+import drone, config
+d = drone.DRONE(flightmode=0)
+while not d.read_calibrated():
+    pass
+d.trim(rol=config.TRIM_ROL, pit=config.TRIM_PIT)
+```

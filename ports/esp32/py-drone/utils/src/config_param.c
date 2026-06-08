@@ -17,17 +17,17 @@ static configParam_t configParamDefault=
 	.version = VERSION,		/*软件版本号*/
 
 	.pidAngle=	/*角度PID*/
-	{	
+	{
 		.roll=
 		{
 			.kp=8.0,
-			.ki=0.0,
+			.ki=0.8,	/* 積分補償固定偏差（IMU 傾斜、重心偏移、馬達不對稱）*/
 			.kd=0.0,
 		},
 		.pitch=
 		{
 			.kp=8.0,
-			.ki=0.0,
+			.ki=0.8,	/* 仍飄移 → 調高至 1.2~1.5；緩慢搖擺 → 調低至 0.3~0.5 */
 			.kd=0.0,
 		},
 		.yaw=
