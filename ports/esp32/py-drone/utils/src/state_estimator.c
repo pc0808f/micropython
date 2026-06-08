@@ -14,6 +14,8 @@
 #define INAV_ACC_BIAS_ACCEPTANCE_VALUE	(GRAVITY_CMSS * 0.25f)   // Max accepted bias correction of 0.25G - unlikely we are going to be that much off anyway
 
 static float wBaro = 0.35f;			/*气压校正权重*/
+static uint16_t baroWarmupCount = 0;	/*起飛後屏蔽氣壓計的倒數計時 (250 Hz ticks)*/
+#define BARO_WARMUP_TICKS  125			/* 0.5 秒，等螺旋槳氣流散去 */
 
 static float wAccBias = 0.01f;		/*加速度校正权重*/
 
@@ -83,14 +85,24 @@ void positionEstimate(sensorData_t* sensorData, state_t* state, float dt)
 	else if(isRstAll)
 	{
 		isRstAll = false;
-		
-		accLpf[Z] = 0.f;	
+
+		accLpf[Z] = 0.f;
 		fusedHeight  = 0.f;
 		fusedHeightLpf = 0.f;
 		startBaroAsl = sensorData->baro.asl;
 		estimator.vel[Z] = 0.f;
 		estimator.pos[Z] = fusedHeight;
-	}	
+		baroWarmupCount = BARO_WARMUP_TICKS;	/* 起飛：開始 0.5 秒暖機期 */
+	}
+
+	/* 暖機期：螺旋槳氣流尚未散去，氣壓計讀值不可信
+	 * 強制 fusedHeight=0、weight=0，讓 INAV 純靠加速度計積分 */
+	if (baroWarmupCount > 0) {
+		baroWarmupCount--;
+		fusedHeight    = 0.f;
+		fusedHeightLpf = 0.f;
+		weight         = 0.f;
+	}
 	
 	Axis3f accelBF;
 	
