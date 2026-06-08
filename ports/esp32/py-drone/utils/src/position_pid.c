@@ -7,7 +7,7 @@
 #include "maths.h"
 
 
-#define THRUST_BASE  		(20000)	/*基础油门值*/
+/* 移除硬編碼 THRUST_BASE，改用 configParam.thrustBase（初始值 34000，會自動學習更新）*/
 
 #define PIDVX_OUTPUT_LIMIT	120.0f	//ROLL限幅	(单位°带0.15的系数)
 #define PIDVY_OUTPUT_LIMIT	120.0f 	//PITCH限幅	(单位°带0.15的系数)
@@ -18,7 +18,7 @@
 #define PIDZ_OUTPUT_LIMIT	120.0f	//Z轴速度限幅(单位cm/s)
 
 
-static float thrustLpf = THRUST_BASE;	/*油门低通*/
+static float thrustLpf = 34000.f;	/*油门低通，初始值與 configParam.thrustBase 一致*/
 
 PidObject pidVX;
 PidObject pidVY;
@@ -56,7 +56,7 @@ static void velocityController(float* thrust, attitude_t *attitude, setpoint_t *
 	// Thrust
 	float thrustRaw = pidUpdate(&pidVZ, setpoint->velocity.z - state->velocity.z);
 	
-	*thrust = constrainf(thrustRaw + THRUST_BASE, 1000, 60000);	/*油门限幅*/
+	*thrust = constrainf(thrustRaw + configParam.thrustBase, 1000, 60000);	/*油门限幅*/
 	
 	thrustLpf += (*thrust - thrustLpf) * 0.003f;
 	

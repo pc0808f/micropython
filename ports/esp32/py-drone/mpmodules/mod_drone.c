@@ -36,6 +36,7 @@
 #include "stabilizer.h"
 
 #include "state_estimator.h"
+#include "position_pid.h"
 #include "pm_esplane.h"
 #include "ledseq.h"
 #include "sensors_mpu6050_spl06.h"
@@ -108,9 +109,10 @@ static mp_obj_t drone_take_off(size_t n_args, const mp_obj_t *pos_args, mp_map_t
 
 			wifiCtrl.trimPitch = (attitude.pitch*0.3);
 			wifiCtrl.trimRoll = (attitude.roll*0.95);
-			
+
 			isOffse = 1;
 		}
+		positionResetAllPID();	/* 清除上一次飛行殘留的積分，避免起飛瞬間推力異常 */
 		setCommanderCtrlMode(1);
 		setCommanderKeyFlight(true);
 		setCommanderKeyland(false);
@@ -191,14 +193,14 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(drone_control_obj, 1, drone_control);
 
 static mp_obj_t read_states(mp_obj_t self_in)
 {
-	mp_obj_t tuple[9];
-	
+	mp_obj_t tuple[10];
+
 	attitude_t attitude;
 	getAttitudeData(&attitude);
 	uint16_t bat = (uint16_t)(pmMeasureExtBatteryVoltage()*100.0f);
 	int32_t FusedHeight =(int32_t) (getFusedHeight());
 
-	tuple[0] = mp_obj_new_int(attitude.roll*100); 
+	tuple[0] = mp_obj_new_int(attitude.roll*100);
 	tuple[1] = mp_obj_new_int(attitude.pitch*100);
 	tuple[2] = mp_obj_new_int(attitude.yaw*100);
 	tuple[3] = mp_obj_new_int(wifiCtrl.roll*100);
@@ -207,8 +209,9 @@ static mp_obj_t read_states(mp_obj_t self_in)
 	tuple[6] = mp_obj_new_int(((wifiCtrl.thrust/655.35)+0.5));
 	tuple[7] = mp_obj_new_int(bat);
 	tuple[8] = mp_obj_new_int(FusedHeight);
-	
-	return mp_obj_new_tuple(9, tuple);
+	tuple[9] = mp_obj_new_int((int32_t)getAltholdThrust()); /* 定高PID實際油門（懸停約34000）*/
+
+	return mp_obj_new_tuple(10, tuple);
 }static MP_DEFINE_CONST_FUN_OBJ_1(read_states_obj, read_states);
 
 //----------------------------------------------------------------------------------

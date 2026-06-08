@@ -75,7 +75,7 @@ static configParam_t configParamDefault=
 		.vz=
 		{
 			.kp=100.0,
-			.ki=150.0,
+			.ki=30.0,	/* 原本 150，250Hz 下積分過快會衝天花板 */
 			.kd=10.0,
 		},
 		
