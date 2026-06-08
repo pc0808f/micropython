@@ -202,6 +202,28 @@ if($ENV{IDF_VERSION} VERSION_GREATER_EQUAL "5.4")
         esp_driver_touch_sens)
 endif()
 
+# py-drone C modules (PYDRONE board)
+if(MICROPY_PORT_DRONE STREQUAL "y")
+    set(DRONE_DIR ${MICROPY_PORT_DIR}/py-drone)
+    file(GLOB_RECURSE MICROPY_SOURCE_DRONE "${DRONE_DIR}/*.c")
+    list(APPEND MICROPY_SOURCE_BOARD ${MICROPY_SOURCE_DRONE})
+    list(APPEND MICROPY_SOURCE_QSTR ${MICROPY_SOURCE_DRONE})
+    list(APPEND MICROPY_INC_DRONE
+        ${DRONE_DIR}
+        ${DRONE_DIR}/drivers/i2c_bus/include
+        ${DRONE_DIR}/drivers/i2c_devices/mpu6050/include
+        ${DRONE_DIR}/drivers/i2c_devices/spl06/include
+        ${DRONE_DIR}/drivers/i2c_devices/hmc5883l/include
+        ${DRONE_DIR}/drivers/motors/include
+        ${DRONE_DIR}/drivers/pm/include
+        ${DRONE_DIR}/drivers/led/include
+        ${DRONE_DIR}/mpmodules
+        ${DRONE_DIR}/port
+        ${DRONE_DIR}/dsp_lib/include
+        ${DRONE_DIR}/utils/interface
+    )
+endif()
+
 # Provide the default LD fragment if not set
 if (MICROPY_USER_LDFRAGMENTS)
     set(MICROPY_LDFRAGMENTS ${MICROPY_USER_LDFRAGMENTS})
@@ -233,6 +255,7 @@ idf_component_register(
         ${MICROPY_INC_CORE}
         ${MICROPY_INC_USERMOD}
         ${MICROPY_INC_TINYUSB}
+        ${MICROPY_INC_DRONE}
         ${MICROPY_PORT_DIR}
         ${MICROPY_BOARD_DIR}
         ${CMAKE_BINARY_DIR}
