@@ -768,7 +768,7 @@ static void anoPSendPeriod(void)
 	//9、高度数据数据
 	if(!(ms_cnt % PERIOD_HEIGHT)){
 		
-		/*读取融合高度 单位cm*/	
+		/*读取融合高度 单位cm*/
 		int32_t FusedHeight =(int32_t) (getFusedHeight()*100);
 		sendSenseAltHeight(FusedHeight, 0,0);
 	}

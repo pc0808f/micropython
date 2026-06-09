@@ -36,6 +36,7 @@ void positionControlInit(float velocityPidDt, float posPidDt)
 	pidSetOutputLimit(&pidVX, PIDVX_OUTPUT_LIMIT);		/* 输出限幅 */
 	pidSetOutputLimit(&pidVY, PIDVY_OUTPUT_LIMIT);		/* 输出限幅 */
 	pidSetOutputLimit(&pidVZ, PIDVZ_OUTPUT_LIMIT);		/* 输出限幅 */
+	pidSetIntegralLimit(&pidVZ, 200.0f);			/* 积分限幅：防止windup，ki=60→最大I项=12000 */
 	
 	pidInit(&pidX, 0, configParam.pidPos.x, posPidDt);			/*x PID初始化*/
 	pidInit(&pidY, 0, configParam.pidPos.y, posPidDt);			/*y PID初始化*/
