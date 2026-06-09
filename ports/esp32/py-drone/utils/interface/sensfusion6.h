@@ -2,6 +2,9 @@
 #define __SENSFUSION6_H
 #include "stabilizer_types.h"
 
+extern float Kp;	/*Mahony 比例增益，預設 0.4*/
+extern float Ki;	/*Mahony 積分增益，預設 0.001*/
+
 void imuUpdate(Axis3f acc, Axis3f gyro, state_t *state , float dt);	/*数据融合 互补滤波*/
 bool getIsCalibrated(void);
 void setCalibrated(bool set);

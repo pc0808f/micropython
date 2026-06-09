@@ -38,6 +38,7 @@
 #include "state_estimator.h"
 #include "position_pid.h"
 #include "attitude_pid.h"
+#include "sensfusion6.h"
 #include "pm_esplane.h"
 #include "ledseq.h"
 #include "sensors_mpu6050_spl06.h"
@@ -349,6 +350,29 @@ static mp_obj_t drone_get_pid_z(mp_obj_t self_in) {
 static MP_DEFINE_CONST_FUN_OBJ_1(drone_get_pid_z_obj, drone_get_pid_z);
 
 //==============================================================================================================
+//==============================================================================================================
+static mp_obj_t drone_set_mahony(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+	static const mp_arg_t allowed_args[] = {
+		{ MP_QSTR_kp, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
+		{ MP_QSTR_ki, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
+	};
+	mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+	mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+	Kp = (float)mp_obj_get_float(args[0].u_obj);
+	Ki = (float)mp_obj_get_float(args[1].u_obj);
+	return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(drone_set_mahony_obj, 0, drone_set_mahony);
+
+static mp_obj_t drone_get_mahony(mp_obj_t self_in) {
+	mp_obj_t tuple[2];
+	tuple[0] = mp_obj_new_float(Kp);
+	tuple[1] = mp_obj_new_float(Ki);
+	return mp_obj_new_tuple(2, tuple);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(drone_get_mahony_obj, drone_get_mahony);
+
+//==============================================================================================================
 /* axis: 0=roll  1=pitch  2=yaw */
 static mp_obj_t drone_set_pid_angle(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
 	static const mp_arg_t allowed_args[] = {
@@ -454,6 +478,8 @@ static const mp_rom_map_elem_t drone_locals_dict_table[] = {
 	{ MP_ROM_QSTR(MP_QSTR_set_pid_z), MP_ROM_PTR(&drone_set_pid_z_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_get_pid_z), MP_ROM_PTR(&drone_get_pid_z_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_set_pid_angle), MP_ROM_PTR(&drone_set_pid_angle_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_set_mahony), MP_ROM_PTR(&drone_set_mahony_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_get_mahony), MP_ROM_PTR(&drone_get_mahony_obj) },
 
 };
 static MP_DEFINE_CONST_DICT(drone_drone_locals_dict,drone_locals_dict_table);

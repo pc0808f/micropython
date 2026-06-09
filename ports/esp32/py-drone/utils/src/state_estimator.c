@@ -103,6 +103,13 @@ void positionEstimate(sensorData_t* sensorData, state_t* state, float dt)
 		fusedHeightLpf = 0.f;
 		weight         = 0.f;
 	}
+
+	/* 動態氣壓計權重：垂直速度快時降低融合強度，抑制定高超衝
+	 * 只在正常懸停狀態下生效（weight == wBaro），reset/warmup 狀態不介入 */
+	if (weight > 0.f && weight < 0.5f) {
+		float velScale = constrainf(1.0f - fabsf(estimator.vel[Z]) / 100.0f, 0.2f, 1.0f);
+		weight *= velScale;
+	}
 	
 	Axis3f accelBF;
 	
@@ -139,7 +146,9 @@ void positionEstimate(sensorData_t* sensorData, state_t* state, float dt)
 	/* 位置预估: Z-axis */
 	inavFilterPredict(Z, dt, estimator.acc[Z]);
 	/* 位置校正: Z-axis */
-	inavFilterCorrectPos(Z, dt, errPosZ, weight);	
+	inavFilterCorrectPos(Z, dt, errPosZ, weight);
+	/* 速度衰減：防止加速計噪聲積分後 Z 速度無限漂移（來自 Crazyflie INAV）*/
+	estimator.vel[Z] *= 0.995f;
 
 	/*加速度偏置校正*/
 	Axis3f accelBiasCorr = {{ 0, 0, 0}};

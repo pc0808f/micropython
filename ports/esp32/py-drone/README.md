@@ -12,6 +12,7 @@
 8. [姿態角度 PID（pidAngle）](#8-姿態角度-pidpidangle)
 9. [常見問題診斷與調整建議](#9-常見問題診斷與調整建議)
 10. [完整調參流程範例](#10-完整調參流程範例)
+11. [新功能測試流程](#11-新功能測試流程)
 
 ---
 
@@ -117,13 +118,22 @@ d.read_air_pressure()   # → (pressure×100, temperature×100)
 | pidRate.yaw.kp | 200 | — | 角速度環偏航比例 |
 | pidRate.yaw.ki | 18.5 | — | 角速度環偏航積分 |
 
+### 運行時可調（Python API，非 configParam）
+
+| 參數 | 預設值 | 說明 |
+|---|---|---|
+| Mahony Kp | 0.4 | 姿態融合比例增益；調低可減少馬達振動對姿態的污染 |
+| Mahony Ki | 0.001 | 姿態融合積分增益；調高可加快陀螺零偏校正速度 |
+
 ### 硬編碼（需修改 C 原始碼）
 
 | 參數 | 位置 | 當前值 | 說明 |
 |---|---|---|---|
 | pidVZ iLimit | position_pid.c | 200 | 積分值上限，ki×iLimit = 最大I項輸出 |
-| wBaro | state_estimator.c | 0.35 | 氣壓計融合權重 |
+| wBaro | state_estimator.c | 0.35 | 氣壓計融合基礎權重（飛快時自動降低） |
 | 氣壓暖機時間 | state_estimator.c | 0.5 秒 | 起飛後氣壓計遮蔽時間 |
+| Z 速度衰減 | state_estimator.c | 0.995/步 | 防止加速計噪聲積分漂移，時間常數約 1.6 秒 |
+| 動態氣壓權重 | state_estimator.c | 自動 | 垂直速度 >30 cm/s 時降低氣壓權重，抑制超衝 |
 | pidZ 速度限幅 | position_pid.c | ±120 cm/s | 高度環輸出上限 |
 
 ---
@@ -147,9 +157,14 @@ d.get_pid_z()              # → (kp, kd)
 d.set_pid_angle(axis=0, kp=8, ki=0.8, kd=0)  # 0=roll
 d.set_pid_angle(axis=1, kp=8, ki=0.8, kd=0)  # 1=pitch
 d.set_pid_angle(axis=2, kp=20, ki=0, kd=1.5) # 2=yaw
+
+# Mahony 姿態融合增益
+d.get_mahony()            # → (0.4, 0.001)  讀取目前 Kp, Ki
+d.set_mahony(0.3, 0.001)  # 降低 Kp，減少馬達振動污染姿態估測
+d.set_mahony(0.4, 0.002)  # 提高 Ki，加快陀螺零偏校正速度
 ```
 
-> **注意**：`set_pid_*` 會即時生效，下一個控制週期（4ms）就套用新值，飛行中修改也有效。
+> **注意**：所有 `set_*` 會即時生效，下一個控制週期（4ms）就套用新值，飛行中修改也有效。
 
 ---
 
@@ -395,6 +410,117 @@ d.landing()
 
 ---
 
+---
+
+## 11. 新功能測試流程
+
+本節針對本次從 Crazyflie 移植的三項改動提供驗證步驟：
+**速度衰減**、**Mahony 參數化**、**動態氣壓計權重**。
+
+速度衰減和動態氣壓權重是被動的，不需要主動調數字，飛完對比行為差異即可。
+Mahony Kp/Ki 需要根據實際飛行結果微調。
+
+---
+
+### 步驟一：地面靜置確認（起飛前）
+
+```python
+from espdrone import drone
+import time
+
+d = drone()
+
+# 確認預設值正確
+print("Mahony:", d.get_mahony())        # 應為 (0.4, 0.001)
+print("pidVZ:", d.get_pid_vz())         # 應為 (100.0, 60.0, 10.0)
+print("thrustBase:", d.get_thrust_base()) # 應為 34000
+
+# 靜置 10 秒觀察姿態穩定性
+for i in range(10):
+    s = d.read_states()
+    print(f"roll={s[0]/100:.2f}°  pitch={s[1]/100:.2f}°  yaw={s[2]/100:.2f}°")
+    time.sleep(1)
+```
+
+**判斷**：
+- roll/pitch 在 ±1° 內小幅跳動 → 正常
+- 靜置就持續單向漂移 → Mahony Ki 太小，試 `d.set_mahony(0.4, 0.002)`
+
+---
+
+### 步驟二：起飛超衝觀察（驗證動態氣壓權重）
+
+```python
+d.take_off(distance=100)
+
+# 起飛後前 5 秒密集取樣
+for i in range(50):
+    s = d.read_states()
+    print(f"t={i*0.1:.1f}s  高度={s[8]}cm")
+    time.sleep(0.1)
+
+d.landing()
+```
+
+**判斷**：
+- 高度最高峰值距目標 100cm 的超衝量（越小越好）
+- 改動前若衝到 140cm，改動後預期 ≤ 120cm
+
+---
+
+### 步驟三：長時懸停觀察（驗證速度衰減）
+
+```python
+d.take_off(distance=80)
+time.sleep(3)  # 等穩定
+
+for i in range(120):
+    s = d.read_states()
+    if i % 15 == 0:
+        print(f"t={i:3d}s  高度={s[8]:4d}cm  "
+              f"roll={s[0]/100:.1f}°  pitch={s[1]/100:.1f}°  "
+              f"推力學習值={s[9]}")
+    time.sleep(1)
+
+# 懸停 2 分鐘後讀取學習推力
+s = d.read_states()
+print(f"\n學習推力: {s[9]}  → 建議 set_thrust_base({int(s[9])})")
+d.landing()
+```
+
+**判斷**：
+- 高度在 2 分鐘內是否維持在 ±10cm → 速度衰減有效
+- 推力學習值趨近穩定後就是真實的 `thrustBase`
+
+---
+
+### 步驟四：Mahony 調參（根據實際現象）
+
+| 現象 | 建議調整 | 指令 |
+|---|---|---|
+| 姿態讀值高頻跳動（>±0.5°） | Kp 降低 | `d.set_mahony(0.3, 0.001)` |
+| 長時間懸停姿態累積偏移 >2° | Ki 提高 | `d.set_mahony(0.4, 0.002)` |
+| 目前正常 | 不動 | — |
+
+```python
+# Kp/Ki 調整後即時生效，不需重啟
+d.set_mahony(0.3, 0.001)
+print("新 Mahony 值:", d.get_mahony())
+```
+
+---
+
+### 調參優先順序
+
+```
+1. thrustBase   ← 每次換電池都要確認，差距 >2000 就更新
+2. pidVZ ki     ← 觀察是否超衝（降 ki）或下沉（升 ki）
+3. Mahony Kp    ← 觀察靜態姿態讀值跳動幅度，跳動大就降
+4. Mahony Ki    ← 觀察長時間懸停的姿態累積漂移，漂移大就升
+```
+
+---
+
 ## 參數速查卡
 
 | 症狀 | 首先調整 | 方向 |
@@ -406,3 +532,5 @@ d.landing()
 | 高頻振盪（嗡嗡） | `pidAngle.kp` | 降低 |
 | 低頻搖擺 | `pidAngle.ki` | 降低 |
 | 旋轉偏轉 | `pidAngle.yaw.kp` | 提高 |
+| 姿態讀值高頻跳動 | `Mahony Kp` | 降低（0.4 → 0.3） |
+| 長時懸停姿態累積偏移 | `Mahony Ki` | 升高（0.001 → 0.002） |
