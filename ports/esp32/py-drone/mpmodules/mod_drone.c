@@ -37,6 +37,7 @@
 
 #include "state_estimator.h"
 #include "position_pid.h"
+#include "attitude_pid.h"
 #include "pm_esplane.h"
 #include "ledseq.h"
 #include "sensors_mpu6050_spl06.h"
@@ -275,6 +276,108 @@ static mp_obj_t read_cal_data(mp_obj_t self_in)
 	return mp_obj_new_tuple(3, tuple);
 }static MP_DEFINE_CONST_FUN_OBJ_1(read_cal_data_obj, read_cal_data);
 
+//==============================================================================================================
+static mp_obj_t drone_set_thrust_base(mp_obj_t self_in, mp_obj_t val_in) {
+	int val = mp_obj_get_int(val_in);
+	if (val < 10000) val = 10000;
+	if (val > 55000) val = 55000;
+	configParam.thrustBase = (uint16_t)val;
+	return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(drone_set_thrust_base_obj, drone_set_thrust_base);
+
+static mp_obj_t drone_get_thrust_base(mp_obj_t self_in) {
+	return mp_obj_new_int(configParam.thrustBase);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(drone_get_thrust_base_obj, drone_get_thrust_base);
+
+//==============================================================================================================
+static mp_obj_t drone_set_pid_vz(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+	static const mp_arg_t allowed_args[] = {
+		{ MP_QSTR_kp, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
+		{ MP_QSTR_ki, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
+		{ MP_QSTR_kd, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
+	};
+	mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+	mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+	float kp = (float)mp_obj_get_float(args[0].u_obj);
+	float ki = (float)mp_obj_get_float(args[1].u_obj);
+	float kd = (float)mp_obj_get_float(args[2].u_obj);
+	pidSetKp(&pidVZ, kp);
+	pidSetKi(&pidVZ, ki);
+	pidSetKd(&pidVZ, kd);
+	configParam.pidPos.vz.kp = kp;
+	configParam.pidPos.vz.ki = ki;
+	configParam.pidPos.vz.kd = kd;
+	return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(drone_set_pid_vz_obj, 0, drone_set_pid_vz);
+
+static mp_obj_t drone_get_pid_vz(mp_obj_t self_in) {
+	mp_obj_t tuple[3];
+	tuple[0] = mp_obj_new_float(pidVZ.kp);
+	tuple[1] = mp_obj_new_float(pidVZ.ki);
+	tuple[2] = mp_obj_new_float(pidVZ.kd);
+	return mp_obj_new_tuple(3, tuple);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(drone_get_pid_vz_obj, drone_get_pid_vz);
+
+//==============================================================================================================
+static mp_obj_t drone_set_pid_z(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+	static const mp_arg_t allowed_args[] = {
+		{ MP_QSTR_kp, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
+		{ MP_QSTR_kd, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
+	};
+	mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+	mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+	float kp = (float)mp_obj_get_float(args[0].u_obj);
+	float kd = (float)mp_obj_get_float(args[1].u_obj);
+	pidSetKp(&pidZ, kp);
+	pidSetKd(&pidZ, kd);
+	configParam.pidPos.z.kp = kp;
+	configParam.pidPos.z.kd = kd;
+	return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(drone_set_pid_z_obj, 0, drone_set_pid_z);
+
+static mp_obj_t drone_get_pid_z(mp_obj_t self_in) {
+	mp_obj_t tuple[2];
+	tuple[0] = mp_obj_new_float(pidZ.kp);
+	tuple[1] = mp_obj_new_float(pidZ.kd);
+	return mp_obj_new_tuple(2, tuple);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(drone_get_pid_z_obj, drone_get_pid_z);
+
+//==============================================================================================================
+/* axis: 0=roll  1=pitch  2=yaw */
+static mp_obj_t drone_set_pid_angle(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+	static const mp_arg_t allowed_args[] = {
+		{ MP_QSTR_axis, MP_ARG_REQUIRED | MP_ARG_INT, {.u_int = 0} },
+		{ MP_QSTR_kp,   MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
+		{ MP_QSTR_ki,   MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
+		{ MP_QSTR_kd,   MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL} },
+	};
+	mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+	mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+	int axis = args[0].u_int;
+	float kp = (float)mp_obj_get_float(args[1].u_obj);
+	float ki = (float)mp_obj_get_float(args[2].u_obj);
+	float kd = (float)mp_obj_get_float(args[3].u_obj);
+	PidObject *pid;
+	pidInit_t *cfg;
+	if (axis == 1)      { pid = &pidAnglePitch; cfg = &configParam.pidAngle.pitch; }
+	else if (axis == 2) { pid = &pidAngleYaw;   cfg = &configParam.pidAngle.yaw; }
+	else                { pid = &pidAngleRoll;   cfg = &configParam.pidAngle.roll; }
+	pidSetKp(pid, kp);
+	pidSetKi(pid, ki);
+	pidSetKd(pid, kd);
+	cfg->kp = kp;
+	cfg->ki = ki;
+	cfg->kd = kd;
+	return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(drone_set_pid_angle_obj, 0, drone_set_pid_angle);
+
 //----------------------------------------------------------------------------------
 static void InitDrone(void)
 {
@@ -344,6 +447,13 @@ static const mp_rom_map_elem_t drone_locals_dict_table[] = {
 	{ MP_ROM_QSTR(MP_QSTR_read_air_pressure), MP_ROM_PTR(&read_air_pressure_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_read_calibrated), MP_ROM_PTR(&read_calibrated_obj) },
 	{ MP_ROM_QSTR(MP_QSTR_read_cal_data), MP_ROM_PTR(&read_cal_data_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_set_thrust_base), MP_ROM_PTR(&drone_set_thrust_base_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_get_thrust_base), MP_ROM_PTR(&drone_get_thrust_base_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_set_pid_vz), MP_ROM_PTR(&drone_set_pid_vz_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_get_pid_vz), MP_ROM_PTR(&drone_get_pid_vz_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_set_pid_z), MP_ROM_PTR(&drone_set_pid_z_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_get_pid_z), MP_ROM_PTR(&drone_get_pid_z_obj) },
+	{ MP_ROM_QSTR(MP_QSTR_set_pid_angle), MP_ROM_PTR(&drone_set_pid_angle_obj) },
 
 };
 static MP_DEFINE_CONST_DICT(drone_drone_locals_dict,drone_locals_dict_table);
